@@ -43,6 +43,28 @@ export default function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
 
+  // Load data from localStorage on mount
+  useEffect(() => {
+    const savedData = localStorage.getItem('stockfinder_data');
+    const savedFileName = localStorage.getItem('stockfinder_filename');
+    if (savedData) {
+      try {
+        setData(JSON.parse(savedData));
+        if (savedFileName) setFileName(savedFileName);
+      } catch (e) {
+        console.error("Failed to load saved data", e);
+      }
+    }
+  }, []);
+
+  // Save data to localStorage whenever it changes
+  useEffect(() => {
+    if (data.length > 0) {
+      localStorage.setItem('stockfinder_data', JSON.stringify(data));
+      if (fileName) localStorage.setItem('stockfinder_filename', fileName);
+    }
+  }, [data, fileName]);
+
   // Initialize Code Reader
   useEffect(() => {
     codeReaderRef.current = new BrowserMultiFormatReader();
@@ -314,7 +336,13 @@ export default function App() {
 
               <div className="flex items-center justify-between px-1">
                 <button 
-                  onClick={() => { setData([]); setFileName(null); clearSearch(); }}
+                  onClick={() => { 
+                    setData([]); 
+                    setFileName(null); 
+                    clearSearch();
+                    localStorage.removeItem('stockfinder_data');
+                    localStorage.removeItem('stockfinder_filename');
+                  }}
                   className="text-xs font-medium text-gray-400 hover:text-red-500 flex items-center gap-1 transition-colors"
                 >
                   <RefreshCcw className="w-3 h-3" />
