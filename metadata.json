@@ -1,0 +1,7 @@
+{
+  "name": "Localizador de Estoque via Barcode",
+  "description": "App para leitura de códigos de barras e consulta em planilhas Excel para controle de estoque.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
