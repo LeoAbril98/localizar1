@@ -37,33 +37,33 @@ export default function App() {
   const [result, setResult] = useState<InventoryItem | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [isCameraReady, setIsCameraReady] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
 
-  // Load data from localStorage on mount
+  // Load data from server on mount
   useEffect(() => {
-    const savedData = localStorage.getItem('stockfinder_data');
-    const savedFileName = localStorage.getItem('stockfinder_filename');
-    if (savedData) {
+    const fetchData = async () => {
       try {
-        setData(JSON.parse(savedData));
-        if (savedFileName) setFileName(savedFileName);
+        const response = await fetch('/api/inventory');
+        if (response.ok) {
+          const { items, fileName: savedFileName } = await response.json();
+          if (items && items.length > 0) {
+            setData(items);
+            if (savedFileName) setFileName(savedFileName);
+          }
+        }
       } catch (e) {
-        console.error("Failed to load saved data", e);
+        console.error("Failed to load data from server", e);
+      } finally {
+        setIsLoading(false);
       }
-    }
+    };
+    fetchData();
   }, []);
-
-  // Save data to localStorage whenever it changes
-  useEffect(() => {
-    if (data.length > 0) {
-      localStorage.setItem('stockfinder_data', JSON.stringify(data));
-      if (fileName) localStorage.setItem('stockfinder_filename', fileName);
-    }
-  }, [data, fileName]);
 
   // Initialize Code Reader
   useEffect(() => {
@@ -106,8 +106,22 @@ export default function App() {
             setError("Formato de planilha inválido. Certifique-se de ter as colunas: Produto/Código e Descricao/Modelo.");
             setData([]);
           } else {
-            setData(mappedData);
-            setError(null);
+            // Save to server
+            fetch('/api/inventory', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ items: mappedData, fileName: file.name })
+            }).then(res => {
+              if (res.ok) {
+                setData(mappedData);
+                setError(null);
+              } else {
+                setError("Erro ao salvar dados no servidor.");
+              }
+            }).catch(err => {
+              console.error(err);
+              setError("Erro de conexão com o servidor.");
+            });
           }
         } else {
           setError("A planilha está vazia.");
@@ -264,8 +278,12 @@ export default function App() {
       </header>
 
       <main className="max-w-xl mx-auto px-4 py-6 space-y-6">
-        {/* Step 1: Upload Excel */}
-        {data.length === 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <RefreshCcw className="w-8 h-8 text-blue-500 animate-spin" />
+            <p className="text-gray-500 text-sm font-medium">Carregando estoque compartilhado...</p>
+          </div>
+        ) : data.length === 0 ? (
           <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -337,11 +355,12 @@ export default function App() {
               <div className="flex items-center justify-between px-1">
                 <button 
                   onClick={() => { 
-                    setData([]); 
-                    setFileName(null); 
-                    clearSearch();
-                    localStorage.removeItem('stockfinder_data');
-                    localStorage.removeItem('stockfinder_filename');
+                    fetch('/api/inventory', { method: 'DELETE' })
+                      .then(() => {
+                        setData([]); 
+                        setFileName(null); 
+                        clearSearch();
+                      });
                   }}
                   className="text-xs font-medium text-gray-400 hover:text-red-500 flex items-center gap-1 transition-colors"
                 >
